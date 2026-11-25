@@ -150,15 +150,20 @@
     if(!r.ok) throw new Error('保存失败（' + r.status + '）');
   }
 
+  // 刚写完的这一下，记在心里：GitHub 读接口有 60 秒缓存，
+  // 刷新时如果读到的还是旧数据，别拿它把刚点的结果盖回去。
+  var lastWrite = null; // { who, day, added, at }
+
   async function toggle(w){
     var key = 'u' + w, t = dk(new Date());
     for(var attempt = 0; attempt < 2; attempt++){
       var res = await ghRead();
       var list = (res.data[key] || []).slice();
       var at = list.indexOf(t);
-      if(at > -1) list.splice(at, 1); else list.push(t);
+      var added = at === -1;
+      if(added) list.push(t); else list.splice(at, 1);
       res.data[key] = list;
-      try { await ghWrite(res.data, res.sha); return res.data; }
+      try { await ghWrite(res.data, res.sha); return { data: res.data, added: added }; }
       catch(e){ if(attempt === 1) throw e; }
     }
   }
@@ -252,6 +257,15 @@
     try{
       var res = await ghRead();
       if(my !== seq) return;
+      // 服务端还没追上刚写的那一下，就按本地记着的来，别让界面回退
+      if(lastWrite && Date.now() - lastWrite.at < 120000){
+        var k = 'u' + lastWrite.who;
+        var days = (res.data[k] || []).slice();
+        var has = days.indexOf(lastWrite.day) > -1;
+        if(has !== lastWrite.added){
+          res.data[k] = lastWrite.added ? days.concat([lastWrite.day]) : days.filter(function(d){ return d !== lastWrite.day; });
+        }
+      }
       render(res.data);
     }catch(e){
       if(my !== seq) return;
@@ -294,9 +308,13 @@
     if(btn){
       btn.disabled = true;
       try{
-        var written = await toggle(who);
-        if(written) render(written);
-        refresh();
+        var r = await toggle(who);
+        if(r){
+          lastWrite = { who: who, day: dk(new Date()), added: r.added, at: Date.now() };
+          render(r.data);
+        }
+        // 别立刻重读——这一下多半还读到旧缓存，直接刷新会被打回原样
+        setTimeout(refresh, 4000);
       }
       catch(err){ footEl.innerHTML = '<span class="err">' + err.message + '，再点一次试试。</span>'; btn.disabled = false; }
     }
