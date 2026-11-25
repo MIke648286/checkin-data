@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>打卡</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:#fff;color:#111;min-height:100vh;
+    display:flex;justify-content:center;padding:64px 22px 44px;
+    -webkit-font-smoothing:antialiased;
+  }
+  main{width:100%;max-width:400px}
+
+  .eyebrow{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase}
+  h1{font-size:21px;font-weight:600;letter-spacing:-.01em;margin-top:12px}
+  .rule{height:1px;background:#111;opacity:.12;margin:22px 0 0}
+
+  .progress{display:flex;align-items:baseline;gap:5px;margin-top:26px;font-size:12px;letter-spacing:.04em;color:#9a9a9a;min-height:16px}
+  .progress b{font-size:12px;font-weight:500;color:#111;font-variant-numeric:tabular-nums;letter-spacing:0}
+
+  .card{border:1px solid #e7e7e7;padding:18px 20px 16px;margin-top:12px}
+  .card.me{border-color:#111}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .name{font-size:14.5px;font-weight:500;padding:1px 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .state{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.12em;color:#9a9a9a;white-space:nowrap}
+  .dot{width:5px;height:5px;border-radius:50%;border:1px solid #111}
+  .dot.on{background:#111}
+  .card.today .state{color:#111}
+
+  .count{display:flex;align-items:baseline;gap:8px;margin-top:18px}
+  .num{font-size:48px;font-weight:300;line-height:.95;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .unit{font-size:11.5px;letter-spacing:.12em;color:#8c8c8c}
+  .hint{font-size:11.5px;color:#9a9a9a;margin-top:8px;min-height:16px}
+
+  button{
+    width:100%;margin-top:18px;padding:12px;font:inherit;font-size:12.5px;letter-spacing:.1em;
+    background:#111;color:#fff;border:1px solid #111;border-radius:0;cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  button:hover{background:#333}
+  button.done{background:#fff;color:#111}
+  button.done:hover{background:#f6f6f6}
+  button:disabled{opacity:.45;cursor:default}
+
+  .pick{display:flex;flex-direction:column;gap:10px;margin-top:24px}
+  .pick button{margin-top:0;padding:16px}
+
+  input.txt{
+    width:100%;margin-top:14px;padding:13px 12px;font:inherit;font-size:12.5px;
+    border:1px solid #ddd;border-radius:0;outline:0;color:#111;
+  }
+  input.txt:focus{border-color:#111}
+
+  .setup{font-size:12px;line-height:1.85;color:#6b6b6b;margin-top:14px}
+  .setup a{color:#111}
+  .setup ol{padding-left:18px;margin-top:8px}
+  .setup li{margin-bottom:4px}
+
+  footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
+  .err{color:#b3261e}
+  .link{color:#a5a5a5;text-decoration:underline;cursor:pointer;font-size:11px}
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Daily Check-in</p>
+  <h1 id="date">—</h1>
+  <div class="rule"></div>
+  <div class="progress" id="progress"></div>
+  <section id="cards"></section>
+  <footer id="foot"></footer>
+</main>
+
+<script>
+(function(){
+  var OWNER = 'MIke648286', REPO = 'checkin-data', FILE = 'data.json';
+  var API = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + FILE;
+  var NAMES = ['自助餐', '大菲菲'];
+  var MOCK = /[?&]mock=1/.test(location.search);
+  var DAYS = 60;
+
+  var WEEK = ['日','一','二','三','四','五','六'];
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  var dk = function(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
+
+  var today = new Date();
+  document.getElementById('date').textContent =
+    (today.getMonth()+1) + '月' + today.getDate() + '日 · 周' + WEEK[today.getDay()];
+
+  var cards = document.getElementById('cards');
+  var progressEl = document.getElementById('progress');
+  var footEl = document.getElementById('foot');
+
+  // ── 本地存的身份与口令 ──
+  var TOKEN = '', who = 0;
+  try {
+    TOKEN = localStorage.getItem('checkin.token') || '';
+    who = +localStorage.getItem('checkin.who') || 0;
+  } catch(e){}
+  var mu = location.search.match(/[?&]u=([12])\b/);
+  if(mu){ who = +mu[1]; try{ localStorage.setItem('checkin.who', mu[1]); }catch(e){} }
+
+  function b64enc(str){
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for(var i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64dec(s){
+    var bin = atob(s.replace(/\n/g,'')), bytes = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function H(extra){
+    var h = { 'Accept':'application/vnd.github+json', 'Authorization':'Bearer ' + TOKEN };
+    if(extra) for(var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  var mockData = { u1: [], u2: [] };
+  if(MOCK){
+    var back = function(k){ var d = new Date(); d.setDate(d.getDate()-k); return dk(d); };
+    mockData = { u1:[back(0),back(1),back(2),back(3)], u2:[back(0)] };
+  }
+
+  async function ghRead(){
+    if(MOCK) return { data: JSON.parse(JSON.stringify(mockData)), sha: 'mock' };
+    var r = await fetch(API + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
+    if(r.status === 404) return { data: { u1:[], u2:[] }, sha: null };
+    if(!r.ok) throw new Error('读取失败（' + r.status + '）');
+    var j = await r.json();
+    return { data: JSON.parse(b64dec(j.content)), sha: j.sha };
+  }
+
+  async function ghWrite(data, sha){
+    if(MOCK){ mockData = data; return; }
+    var r = await fetch(API, {
+      method: 'PUT',
+      headers: H({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({ message: '打卡 ' + dk(new Date()), content: b64enc(JSON.stringify(data)), sha: sha || undefined })
+    });
+    if(!r.ok) throw new Error('保存失败（' + r.status + '）');
+  }
+
+  async function toggle(w){
+    var key = 'u' + w, t = dk(new Date());
+    for(var attempt = 0; attempt < 2; attempt++){
+      var res = await ghRead();
+      var list = (res.data[key] || []).slice();
+      var at = list.indexOf(t);
+      if(at > -1) list.splice(at, 1); else list.push(t);
+      res.data[key] = list;
+      try { await ghWrite(res.data, res.sha); return res.data; }
+      catch(e){ if(attempt === 1) throw e; }
+    }
+  }
+
+  function streak(days){
+    var set = new Set(days), d = new Date();
+    if(!set.has(dk(d))) d.setDate(d.getDate()-1);
+    var n = 0;
+    while(set.has(dk(d))){ n++; d.setDate(d.getDate()-1); }
+    return n;
+  }
+
+  // ── 首次使用的口令设置 ──
+  function renderSetup(){
+    progressEl.textContent = '';
+    cards.innerHTML =
+      '<div class="setup">第一次用要贴一串口令。生成一次就好，两个人的手机上各贴一次。</div>' +
+      '<ol class="setup">' +
+        '<li>打开 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">这个页面</a></li>' +
+        '<li>Token name 随便填，Expiration 选 No expiration</li>' +
+        '<li>Repository access 选 Only select repositories，勾 <b>checkin-data</b></li>' +
+        '<li>Permissions → Contents 选 <b>Read and write</b></li>' +
+        '<li>Generate token，把 ghp_ 开头的那串复制过来</li>' +
+      '</ol>' +
+      '<input class="txt" id="tk" placeholder="粘贴口令" autocomplete="off" spellcheck="false">' +
+      '<button id="saveTk">存到这台设备</button>';
+  }
+
+  function renderPick(){
+    progressEl.textContent = '';
+    cards.innerHTML =
+      '<p class="hint" style="margin-top:24px">你是哪一位？点一次就好。</p>' +
+      '<div class="pick">' +
+        '<button data-who="1">' + NAMES[0] + '</button>' +
+        '<button data-who="2">' + NAMES[1] + '</button>' +
+      '</div>';
+  }
+
+  function render(data){
+    var t = dk(new Date());
+    var mine = (data['u' + who] || []).slice();
+    var other = (data['u' + (who === 1 ? 2 : 1)] || []).slice();
+    var doneMine = mine.indexOf(t) > -1;
+    var doneOther = other.indexOf(t) > -1;
+    var doneCount = (doneMine ? 1 : 0) + (doneOther ? 1 : 0);
+
+    progressEl.innerHTML = '今天已打卡 <b>' + doneCount + '</b><span>/ 2</span>';
+    cards.innerHTML = '';
+
+    [1,2].forEach(function(w){
+      var isMe = w === who;
+      var list = isMe ? mine : other;
+      var done = isMe ? doneMine : doneOther;
+      var n = streak(list);
+
+      var hint;
+      if(done) hint = isMe ? '点按钮可以撤销' : '今天已经打过了';
+      else if(n > 0) hint = isMe ? ('今天是第 ' + (n+1) + ' 天，不打就断') : ('今天还没打，连着 ' + n + ' 天了');
+      else hint = isMe ? '点一下就算打过' : '今天还没打';
+
+      var card = document.createElement('div');
+      card.className = 'card' + (done ? ' today' : '') + (isMe ? ' me' : '');
+      card.innerHTML =
+        '<div class="row">' +
+          '<div class="name">' + NAMES[w-1] + '</div>' +
+          '<div class="state"><span class="dot' + (done?' on':'') + '"></span>' + (done ? '已打卡' : '未打卡') + '</div>' +
+        '</div>' +
+        '<div class="count"><span class="num">' + n + '</span><span class="unit">天连续</span></div>' +
+        '<p class="hint">' + hint + '</p>' +
+        (isMe ? '<button class="' + (done?'done':'') + '" data-act="' + (done?'undo':'in') + '">' + (done ? '已打卡' : '打卡') + '</button>' : '');
+      cards.appendChild(card);
+    });
+
+    footEl.innerHTML = '数据放在 GitHub 的 checkin-data 里，两个人各自打开自己的链接就能互看。<br>' +
+      '<span class="link" id="resetAll">换口令 / 换身份</span>';
+  }
+
+  var seq = 0;
+  async function refresh(){
+    if(!TOKEN){ renderSetup(); return; }
+    if(!who){ renderPick(); return; }
+    var my = ++seq;
+    try{
+      var res = await ghRead();
+      if(my !== seq) return;
+      render(res.data);
+    }catch(e){
+      if(my !== seq) return;
+      footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
+    }
+  }
+
+  cards.addEventListener('click', async function(e){
+    var save = e.target.closest('#saveTk');
+    if(save){
+      var v = (document.getElementById('tk').value || '').trim();
+      if(!v){ return; }
+      TOKEN = v;
+      try{ localStorage.setItem('checkin.token', v); }catch(err){}
+      refresh();
+      return;
+    }
+    var pick = e.target.closest('button[data-who]');
+    if(pick){
+      who = +pick.dataset.who;
+      try{ localStorage.setItem('checkin.who', String(who)); }catch(err){}
+      history.replaceState(null, '', '?u=' + who);
+      refresh();
+      return;
+    }
+    var btn = e.target.closest('button[data-act]');
+    if(btn){
+      btn.disabled = true;
+      try{
+        var written = await toggle(who);
+        if(written) render(written);
+        refresh();
+      }
+      catch(err){ footEl.innerHTML = '<span class="err">' + err.message + '，再点一次试试。</span>'; btn.disabled = false; }
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    if(e.target.id === 'resetAll'){
+      try{ localStorage.removeItem('checkin.token'); localStorage.removeItem('checkin.who'); }catch(err){}
+      TOKEN = ''; who = 0;
+      refresh();
+    }
+  });
+
+  refresh();
+  setInterval(function(){ if(document.visibilityState === 'visible') refresh(); }, 30000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') refresh(); });
+})();
+</script>
+</body>
+</html>
