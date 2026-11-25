@@ -307,6 +307,7 @@
     var btn = e.target.closest('button[data-act]');
     if(btn){
       btn.disabled = true;
+      btn.textContent = btn.dataset.act === 'in' ? '打卡中…' : '撤销中…';
       try{
         var r = await toggle(who);
         if(r){
