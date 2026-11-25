@@ -181,6 +181,7 @@
         '<li>Generate token，把 ghp_ 开头的那串复制过来</li>' +
       '</ol>' +
       '<input class="txt" id="tk" placeholder="粘贴口令" autocomplete="off" spellcheck="false">' +
+      '<p class="hint" id="note" style="color:#b3261e"></p>' +
       '<button id="saveTk">存到这台设备</button>';
   }
 
@@ -235,7 +236,11 @@
 
   var seq = 0;
   async function refresh(){
-    if(!TOKEN){ renderSetup(); return; }
+    if(!TOKEN){
+      // 别重画：重画会把用户刚粘贴的口令清空
+      if(!document.getElementById('tk')) renderSetup();
+      return;
+    }
     if(!who){ renderPick(); return; }
     var my = ++seq;
     try{
@@ -251,9 +256,22 @@
   cards.addEventListener('click', async function(e){
     var save = e.target.closest('#saveTk');
     if(save){
+      var note = document.getElementById('note');
       var v = (document.getElementById('tk').value || '').trim();
-      if(!v){ return; }
+      if(!v){ note.textContent = '先把口令粘贴到上面的框里'; return; }
+      save.disabled = true;
+      save.textContent = '检查中…';
+      note.textContent = '';
       TOKEN = v;
+      try {
+        await ghRead();
+      } catch(err) {
+        TOKEN = '';
+        save.disabled = false;
+        save.textContent = '存到这台设备';
+        note.textContent = '口令不对，或者没给 checkin-data 的 Contents 读写权限';
+        return;
+      }
       try{ localStorage.setItem('checkin.token', v); }catch(err){}
       refresh();
       return;
