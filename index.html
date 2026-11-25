@@ -20,7 +20,9 @@
   h1{font-size:21px;font-weight:600;letter-spacing:-.01em;margin-top:12px}
   .rule{height:1px;background:#111;opacity:.12;margin:22px 0 0}
 
-  .progress{display:flex;align-items:baseline;gap:5px;margin-top:26px;font-size:12px;letter-spacing:.04em;color:#9a9a9a;min-height:16px}
+  .whoami{font-size:11.5px;letter-spacing:.04em;color:#9a9a9a;margin-top:18px;min-height:15px}
+  .whoami b{color:#111;font-weight:500}
+  .progress{display:flex;align-items:baseline;gap:5px;margin-top:8px;font-size:12px;letter-spacing:.04em;color:#9a9a9a;min-height:16px}
   .progress b{font-size:12px;font-weight:500;color:#111;font-variant-numeric:tabular-nums;letter-spacing:0}
 
   .card{border:1px solid #e7e7e7;padding:18px 20px 16px;margin-top:12px}
@@ -72,6 +74,7 @@
   <p class="eyebrow">Daily Check-in</p>
   <h1 id="date">—</h1>
   <div class="rule"></div>
+  <div class="whoami" id="whoami"></div>
   <div class="progress" id="progress"></div>
   <section id="cards"></section>
   <footer id="foot"></footer>
@@ -171,6 +174,7 @@
   // ── 首次使用的口令设置 ──
   function renderSetup(){
     progressEl.textContent = '';
+    document.getElementById('whoami').textContent = '';
     cards.innerHTML =
       '<div class="setup">第一次用要贴一串口令。生成一次就好，两个人的手机上各贴一次。</div>' +
       '<ol class="setup">' +
@@ -187,6 +191,7 @@
 
   function renderPick(){
     progressEl.textContent = '';
+    document.getElementById('whoami').textContent = '';
     cards.innerHTML =
       '<p class="hint" style="margin-top:24px">你是哪一位？点一次就好。</p>' +
       '<div class="pick">' +
@@ -203,6 +208,7 @@
     var doneOther = other.indexOf(t) > -1;
     var doneCount = (doneMine ? 1 : 0) + (doneOther ? 1 : 0);
 
+    document.getElementById('whoami').innerHTML = '你是 <b>' + NAMES[who-1] + '</b>';
     progressEl.innerHTML = '今天已打卡 <b>' + doneCount + '</b><span>/ 2</span>';
     cards.innerHTML = '';
 
