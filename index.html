@@ -64,7 +64,18 @@
   .setup ol{padding-left:18px;margin-top:8px}
   .setup li{margin-bottom:4px}
 
-  footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
+  /* 最近 30 天 */
+  .cal{margin-top:28px}
+  .cal-title{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase}
+  .cal-row{display:flex;align-items:center;gap:12px;margin-top:10px}
+  .cal-name{font-size:11px;color:#8c8c8c;width:46px;flex:none}
+  .cells{display:flex;gap:3px;flex:1}
+  .cell{height:10px;flex:1;background:#ededed}
+  .cell.on{background:#111}
+  .cell.today{outline:1px solid #111;outline-offset:1px}
+  .cal-foot{font-size:10.5px;color:#b0b0b0;margin-top:8px;letter-spacing:.04em}
+
+  footer{margin-top:28px;font-size:11px;line-height:1.8;color:#a5a5a5}
   .err{color:#b3261e}
   .link{color:#a5a5a5;text-decoration:underline;cursor:pointer;font-size:11px}
 </style>
@@ -77,16 +88,16 @@
   <div class="whoami" id="whoami"></div>
   <div class="progress" id="progress"></div>
   <section id="cards"></section>
+  <section id="calendar"></section>
   <footer id="foot"></footer>
 </main>
 
 <script>
 (function(){
-  var OWNER = 'MIke648286', REPO = 'checkin-data', FILE = 'data.json';
-  var API = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + FILE;
+  var OWNER = 'MIke648286', REPO = 'checkin-data';
+  var BASE = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/';
   var NAMES = ['自助餐', '大菲菲'];
   var MOCK = /[?&]mock=1/.test(location.search);
-  var DAYS = 60;
 
   var WEEK = ['日','一','二','三','四','五','六'];
   var pad = function(n){ return String(n).padStart(2,'0'); };
@@ -97,10 +108,10 @@
     (today.getMonth()+1) + '月' + today.getDate() + '日 · 周' + WEEK[today.getDay()];
 
   var cards = document.getElementById('cards');
+  var calEl = document.getElementById('calendar');
   var progressEl = document.getElementById('progress');
   var footEl = document.getElementById('foot');
 
-  // ── 本地存的身份与口令 ──
   var TOKEN = '', who = 0;
   try {
     TOKEN = localStorage.getItem('checkin.token') || '';
@@ -125,45 +136,46 @@
     return h;
   }
 
-  var mockData = { u1: [], u2: [] };
+  // ── 每人一份文件，各写各的，两个人怎么同时点都不会互相覆盖 ──
+  var mockDays = { 1: [], 2: [] };
   if(MOCK){
     var back = function(k){ var d = new Date(); d.setDate(d.getDate()-k); return dk(d); };
-    mockData = { u1:[back(0),back(1),back(2),back(3)], u2:[back(0)] };
+    mockDays = { 1:[back(0),back(1),back(2),back(3)], 2:[back(0)] };
   }
 
-  async function ghRead(){
-    if(MOCK) return { data: JSON.parse(JSON.stringify(mockData)), sha: 'mock' };
-    var r = await fetch(API + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
-    if(r.status === 404) return { data: { u1:[], u2:[] }, sha: null };
+  function fileUrl(w){ return BASE + 'u' + w + '.json'; }
+
+  async function readOne(w){
+    if(MOCK) return { days: mockDays[w].slice(), sha: 'mock' };
+    var r = await fetch(fileUrl(w) + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
+    if(r.status === 404) return { days: [], sha: null };
     if(!r.ok) throw new Error('读取失败（' + r.status + '）');
     var j = await r.json();
-    return { data: JSON.parse(b64dec(j.content)), sha: j.sha };
+    return { days: JSON.parse(b64dec(j.content)), sha: j.sha };
   }
 
-  async function ghWrite(data, sha){
-    if(MOCK){ mockData = data; return; }
-    var r = await fetch(API, {
+  async function writeOne(w, days, sha){
+    if(MOCK){ mockDays[w] = days.slice(); return; }
+    var r = await fetch(fileUrl(w), {
       method: 'PUT',
       headers: H({ 'Content-Type':'application/json' }),
-      body: JSON.stringify({ message: '打卡 ' + dk(new Date()), content: b64enc(JSON.stringify(data)), sha: sha || undefined })
+      body: JSON.stringify({ message: '打卡 ' + dk(new Date()), content: b64enc(JSON.stringify(days)), sha: sha || undefined })
     });
     if(!r.ok) throw new Error('保存失败（' + r.status + '）');
   }
 
-  // 刚写完的这一下，记在心里：GitHub 读接口有 60 秒缓存，
-  // 刷新时如果读到的还是旧数据，别拿它把刚点的结果盖回去。
+  // 刚写完的这一下记在心里：读接口有 60 秒缓存，别拿旧数据把刚点的结果盖回去
   var lastWrite = null; // { who, day, added, at }
 
   async function toggle(w){
-    var key = 'u' + w, t = dk(new Date());
+    var t = dk(new Date());
     for(var attempt = 0; attempt < 2; attempt++){
-      var res = await ghRead();
-      var list = (res.data[key] || []).slice();
-      var at = list.indexOf(t);
+      var r = await readOne(w);
+      var days = r.days.slice();
+      var at = days.indexOf(t);
       var added = at === -1;
-      if(added) list.push(t); else list.splice(at, 1);
-      res.data[key] = list;
-      try { await ghWrite(res.data, res.sha); return { data: res.data, added: added }; }
+      if(added) days.push(t); else days.splice(at, 1);
+      try { await writeOne(w, days, r.sha); return { days: days, added: added }; }
       catch(e){ if(attempt === 1) throw e; }
     }
   }
@@ -176,10 +188,10 @@
     return n;
   }
 
-  // ── 首次使用的口令设置 ──
   function renderSetup(){
     progressEl.textContent = '';
     document.getElementById('whoami').textContent = '';
+    calEl.innerHTML = '';
     cards.innerHTML =
       '<div class="setup">第一次用要贴一串口令。生成一次就好，两个人的手机上各贴一次。</div>' +
       '<ol class="setup">' +
@@ -197,12 +209,38 @@
   function renderPick(){
     progressEl.textContent = '';
     document.getElementById('whoami').textContent = '';
+    calEl.innerHTML = '';
     cards.innerHTML =
       '<p class="hint" style="margin-top:24px">你是哪一位？点一次就好。</p>' +
       '<div class="pick">' +
         '<button data-who="1">' + NAMES[0] + '</button>' +
         '<button data-who="2">' + NAMES[1] + '</button>' +
       '</div>';
+  }
+
+  function recentDays(n){
+    var out = [], d = new Date();
+    for(var i = n-1; i >= 0; i--){
+      var x = new Date(); x.setDate(d.getDate() - i);
+      out.push(dk(x));
+    }
+    return out;
+  }
+
+  function renderCalendar(u1, u2){
+    var days = recentDays(30), t = dk(new Date());
+    var setA = new Set(u1), setB = new Set(u2);
+    var html = '<p class="cal-title">最近 30 天</p>';
+    [[NAMES[0], setA], [NAMES[1], setB]].forEach(function(pair){
+      html += '<div class="cal-row"><span class="cal-name">' + pair[0] + '</span><span class="cells">';
+      days.forEach(function(d){
+        var cls = 'cell' + (pair[1].has(d) ? ' on' : '') + (d === t ? ' today' : '');
+        html += '<span class="' + cls + '"></span>';
+      });
+      html += '</span></div>';
+    });
+    html += '<p class="cal-foot">左到右 = 从 ' + days[0].slice(5).replace('-','月') + '日 到今天</p>';
+    calEl.innerHTML = html;
   }
 
   function render(data){
@@ -241,32 +279,33 @@
       cards.appendChild(card);
     });
 
-    footEl.innerHTML = '数据放在 GitHub 的 checkin-data 里，两个人各自打开自己的链接就能互看。<br>' +
-      '<span class="link" id="resetAll">换口令 / 换身份</span>';
+    renderCalendar(data.u1 || [], data.u2 || []);
+
+    footEl.innerHTML = '两个人各存各的记录，同时点也不会互相覆盖。<br>' +
+      '<span class="link" id="export">导出记录</span>　<span class="link" id="resetAll">换口令 / 换身份</span>';
   }
 
   var seq = 0;
   async function refresh(){
     if(!TOKEN){
-      // 别重画：重画会把用户刚粘贴的口令清空
       if(!document.getElementById('tk')) renderSetup();
       return;
     }
     if(!who){ renderPick(); return; }
     var my = ++seq;
     try{
-      var res = await ghRead();
+      var a = await readOne(1), b = await readOne(2);
       if(my !== seq) return;
-      // 服务端还没追上刚写的那一下，就按本地记着的来，别让界面回退
+      var data = { u1: a.days, u2: b.days };
       if(lastWrite && Date.now() - lastWrite.at < 120000){
         var k = 'u' + lastWrite.who;
-        var days = (res.data[k] || []).slice();
+        var days = (data[k] || []).slice();
         var has = days.indexOf(lastWrite.day) > -1;
         if(has !== lastWrite.added){
-          res.data[k] = lastWrite.added ? days.concat([lastWrite.day]) : days.filter(function(d){ return d !== lastWrite.day; });
+          data[k] = lastWrite.added ? days.concat([lastWrite.day]) : days.filter(function(d){ return d !== lastWrite.day; });
         }
       }
-      render(res.data);
+      render(data);
     }catch(e){
       if(my !== seq) return;
       footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
@@ -284,7 +323,7 @@
       note.textContent = '';
       TOKEN = v;
       try {
-        await ghRead();
+        await readOne(1);
       } catch(err) {
         TOKEN = '';
         save.disabled = false;
@@ -312,16 +351,31 @@
         var r = await toggle(who);
         if(r){
           lastWrite = { who: who, day: dk(new Date()), added: r.added, at: Date.now() };
-          render(r.data);
+          var a = await readOne(1), b = await readOne(2);
+          var data = { u1: a.days, u2: b.days };
+          data['u' + who] = r.days;
+          render(data);
         }
-        // 别立刻重读——这一下多半还读到旧缓存，直接刷新会被打回原样
         setTimeout(refresh, 4000);
       }
-      catch(err){ footEl.innerHTML = '<span class="err">' + err.message + '，再点一次试试。</span>'; btn.disabled = false; }
+      catch(err){ footEl.innerHTML = '<span class="err">' + err.message + '，再点一次试试。</span>'; btn.disabled = false; btn.textContent = '打卡'; }
     }
   });
 
-  document.addEventListener('click', function(e){
+  document.addEventListener('click', async function(e){
+    if(e.target.id === 'export'){
+      try{
+        var a = await readOne(1), b = await readOne(2);
+        var blob = new Blob([JSON.stringify({ [NAMES[0]]: a.days, [NAMES[1]]: b.days }, null, 2)], { type:'application/json' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = '打卡记录-' + dk(new Date()) + '.json';
+        link.click();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      }catch(err){ footEl.innerHTML = '<span class="err">导出失败，稍后再试。</span>'; }
+      return;
+    }
     if(e.target.id === 'resetAll'){
       try{ localStorage.removeItem('checkin.token'); localStorage.removeItem('checkin.who'); }catch(err){}
       TOKEN = ''; who = 0;
