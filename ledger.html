@@ -24,42 +24,41 @@
   .tnum{font-size:52px;font-weight:300;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
   .tunit{font-size:11.5px;letter-spacing:.12em;color:#8c8c8c}
 
-  #form{margin-top:26px}
-  #amt{
-    width:100%;padding:14px 0;font:inherit;font-size:22px;font-weight:300;letter-spacing:-.01em;
-    color:#111;background:transparent;border:0;border-bottom:1px solid #111;outline:0;
+  .sec-title{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase;margin-top:34px}
+
+  .day-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field .lb{font-size:11px;color:#8c8c8c;letter-spacing:.06em}
+  .field input{
+    width:100%;padding:10px 0;font:inherit;font-size:19px;font-weight:300;
+    color:#111;background:transparent;border:0;border-bottom:1px solid #dcdcdc;outline:0;
     font-variant-numeric:tabular-nums;
   }
-  #amt::placeholder{color:#c9c9c9;font-weight:300}
-  #amt::-webkit-outer-spin-button,#amt::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  #amt{-moz-appearance:textfield;appearance:textfield}
-  .cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-  .cat{
-    padding:13px 10px;font:inherit;font-size:12.5px;letter-spacing:.08em;
-    background:#fff;color:#111;border:1px solid #111;cursor:pointer;text-align:center;
-    transition:background .12s,color .12s;
+  .field input:focus{border-bottom-color:#111}
+  .field input::placeholder{color:#d5d5d5}
+  #saveDay{
+    width:100%;margin-top:16px;padding:13px;font:inherit;font-size:12.5px;letter-spacing:.1em;
+    background:#111;color:#fff;border:1px solid #111;cursor:pointer;transition:background .15s;
   }
-  .cat:hover{background:#111;color:#fff}
-  .cat:disabled{opacity:.4;cursor:default}
-  .cat .shade{display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:middle}
-  .err{color:#b3261e;font-size:11.5px;margin-top:10px;min-height:16px}
+  #saveDay:hover{background:#333}
+  #saveDay:disabled{opacity:.45;cursor:default}
+  .msg{font-size:11.5px;color:#b3261e;margin-top:8px;min-height:16px}
+  .msg.ok{color:#5a5a5a}
 
-  .bars{margin-top:34px}
+  .bars{margin-top:12px}
   .bar-row{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12px}
   .bar-name{width:38px;flex:none;color:#111}
-  .bar-track{flex:1;height:10px;background:#ededed;position:relative}
+  .bar-track{flex:1;height:10px;background:#ededed}
   .bar-fill{display:block;height:100%;background:#111;transition:width .25s}
   .bar-num{width:104px;flex:none;text-align:right;color:#8c8c8c;font-variant-numeric:tabular-nums}
   .bar-num b{color:#111;font-weight:500}
 
-  .list{margin-top:34px;border-top:1px solid #111;opacity:.999;padding-top:6px}
-  .item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f0f0f0;font-size:12.5px}
-  .item-main{display:flex;gap:10px;align-items:baseline;min-width:0}
-  .item-date{color:#a5a5a5;font-size:11px;font-variant-numeric:tabular-nums;flex:none}
-  .item-cat{color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .item-amt{font-variant-numeric:tabular-nums;margin-left:8px}
-  .del{color:#c0c0c0;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;flex:none}
-  .del:hover{color:#b3261e}
+  .list{margin-top:14px}
+  .day{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0}
+  .day-left{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .day-date{font-size:12.5px;font-variant-numeric:tabular-nums;color:#111}
+  .day-detail{font-size:11px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .day-sum{font-size:14px;font-variant-numeric:tabular-nums;flex:none}
   .empty{font-size:12px;color:#a5a5a5;padding:18px 0}
 
   footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
@@ -76,6 +75,9 @@
     width:100%;margin-top:14px;padding:12px;font:inherit;font-size:12.5px;letter-spacing:.1em;
     background:#111;color:#fff;border:1px solid #111;cursor:pointer;
   }
+  #amt::-webkit-outer-spin-button,#amt::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .field input{-moz-appearance:textfield;appearance:textfield}
 </style>
 </head>
 <body>
@@ -84,9 +86,16 @@
   <h1 id="title">—</h1>
   <div class="rule"></div>
   <div class="total"><span class="tnum" id="total">—</span><span class="tunit">元 · 本月</span></div>
-  <section id="form"></section>
+
+  <p class="sec-title" id="todayTitle">今天</p>
+  <div id="form"></div>
+
+  <p class="sec-title">钱花在哪些类别</p>
   <section class="bars" id="bars"></section>
+
+  <p class="sec-title">每天花了多少</p>
   <section class="list" id="list"></section>
+
   <footer id="foot"></footer>
 </main>
 
@@ -102,16 +111,16 @@
     { id:'daily', name:'日用', shade:'#8a8a8a' },
     { id:'other', name:'其他', shade:'#c7c7c7' }
   ];
-  var CATNAME = {};
-  CATS.forEach(function(c){ CATNAME[c.id] = c.name; });
 
   var pad = function(n){ return String(n).padStart(2,'0'); };
   var dk = function(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
   var today = new Date();
   var YM = today.getFullYear() + '-' + pad(today.getMonth()+1);
+  var TODAY = dk(today);
 
   var title = document.getElementById('title');
   title.textContent = (today.getMonth()+1) + ' 月';
+  document.getElementById('todayTitle').textContent = '今天 · ' + (today.getMonth()+1) + '月' + today.getDate() + '日';
 
   var totalEl = document.getElementById('total');
   var formEl = document.getElementById('form');
@@ -138,81 +147,84 @@
     return h;
   }
 
-  var mockRows = [];
+  // 每天一条：{d:'2026-11-26', food:30, move:6, daily:0, other:0}
+  // 旧格式是一笔一条 {d,a,c,t}，读到时按天合并，老数据不丢
+  function norm(list){
+    var map = {};
+    (list || []).forEach(function(r){
+      if(!r || !r.d) return;
+      var isDay = r.food !== undefined || r.move !== undefined || r.daily !== undefined || r.other !== undefined;
+      if(!map[r.d]) map[r.d] = { d: r.d, food:0, move:0, daily:0, other:0 };
+      if(isDay){
+        CATS.forEach(function(c){ map[r.d][c.id] += Number(r[c.id]) || 0; });
+      } else if(r.c !== undefined){
+        if(map[r.d][r.c] === undefined) map[r.d].other += Number(r.a) || 0;
+        else map[r.d][r.c] += Number(r.a) || 0;
+      }
+    });
+    return Object.keys(map).sort().map(function(k){ return map[k]; });
+  }
+
+  function daySum(day){ return CATS.reduce(function(s,c){ return s + (Number(day[c.id]) || 0); }, 0); }
+  function money(n){ return (Math.round(n*100)/100).toFixed(2).replace(/\.00$/, ''); }
+
+  var mockDays = [];
   if(MOCK){
-    mockRows = [
-      { d:'2026-11-26', a:15, c:'food', t:4 },
-      { d:'2026-11-25', a:6, c:'move', t:3 },
-      { d:'2026-11-24', a:32, c:'daily', t:2 },
-      { d:'2026-11-23', a:22, c:'food', t:1 }
-    ];
+    var mk = function(k, f, m, dl, o){
+      var d = new Date(); d.setDate(d.getDate()-k);
+      return { d: dk(d), food:f, move:m, daily:dl, other:o };
+    };
+    mockDays = [mk(0,30,6,0,0), mk(1,25,0,32,0), mk(2,28,4,0,10)];
   }
 
   async function readAll(){
-    if(MOCK) return { rows: mockRows.slice(), sha: 'mock' };
+    if(MOCK) return { days: norm(mockDays), sha:'mock' };
     var r = await fetch(API + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
-    if(r.status === 404) return { rows: [], sha: null };
+    if(r.status === 404) return { days: [], sha: null };
     if(!r.ok) throw new Error('读取失败（' + r.status + '）');
     var j = await r.json();
-    var rows = JSON.parse(b64dec(j.content));
-    return { rows: Array.isArray(rows) ? rows : [], sha: j.sha };
+    return { days: norm(JSON.parse(b64dec(j.content))), sha: j.sha };
   }
 
-  async function writeAll(rows, sha){
-    if(MOCK){ mockRows = rows.slice(); return; }
+  async function writeAll(days, sha){
+    if(MOCK){ mockDays = days.slice(); return; }
     var r = await fetch(API, {
       method:'PUT',
       headers: H({ 'Content-Type':'application/json' }),
-      body: JSON.stringify({ message:'记一笔 ' + dk(new Date()), content: b64enc(JSON.stringify(rows)), sha: sha || undefined })
+      body: JSON.stringify({ message:'记账 ' + TODAY, content: b64enc(JSON.stringify(days)), sha: sha || undefined })
     });
     if(!r.ok) throw new Error('保存失败（' + r.status + '）');
   }
 
-  function money(n){
-    return (Math.round(n*100)/100).toFixed(2).replace(/\.00$/, '');
+  function renderForm(days){
+    var cur = days.filter(function(d){ return d.d === TODAY; })[0] || { food:0, move:0, daily:0, other:0 };
+    var html = '<div class="day-grid">';
+    CATS.forEach(function(c){
+      var v = cur[c.id] ? money(cur[c.id]) : '';
+      html += '<span class="field"><span class="lb">' + c.name + '</span>' +
+        '<input id="f_' + c.id + '" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="' + v + '">' +
+      '</span>';
+    });
+    html += '</div><button id="saveDay">记上今天</button><p class="msg" id="msg"></p>';
+    formEl.innerHTML = html;
   }
 
-  function renderSetup(){
-    totalEl.textContent = '—';
-    barsEl.innerHTML = ''; listEl.innerHTML = '';
-    formEl.innerHTML =
-      '<div class="setup">第一次用要贴一串口令，就是打卡页那个，同一个就行。生成步骤见打卡页，或者点下面的链接。</div>' +
-      '<input class="txt" id="tk" placeholder="粘贴口令" autocomplete="off" spellcheck="false">' +
-      '<p class="err" id="tker">'  + '</p>' +
-      '<button class="solid" id="saveTk">存到这台设备</button>';
-    footEl.innerHTML = '数据存在同一个仓库的 ledger.json 里，只有你能看到内容。<br>' +
-      '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>　<span class="link" id="goto">生成口令的方法</span>';
-  }
-
-  function render(rows){
-    var month = rows.filter(function(r){ return (r.d||'').indexOf(YM) === 0; });
-    var sum = month.reduce(function(s,r){ return s + (Number(r.a) || 0); }, 0);
+  function render(days){
+    var month = days.filter(function(d){ return d.d.indexOf(YM) === 0; });
+    var sum = month.reduce(function(s,d){ return s + daySum(d); }, 0);
 
     totalEl.textContent = sum ? money(sum) : '0';
 
-    formEl.innerHTML =
-      '<input id="amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="金额">' +
-      '<div class="cats" id="cats"></div>' +
-      '<p class="err" id="err"></p>';
-
-    var catsBox = document.getElementById('cats');
-    CATS.forEach(function(c){
-      var b = document.createElement('button');
-      b.className = 'cat';
-      b.dataset.cat = c.id;
-      b.innerHTML = '<span class="shade" style="background:' + c.shade + '"></span>' + c.name;
-      catsBox.appendChild(b);
-    });
+    renderForm(days);
 
     // 类别横条
     var byCat = {};
     CATS.forEach(function(c){ byCat[c.id] = 0; });
-    month.forEach(function(r){ if(byCat[r.c] !== undefined) byCat[r.c] += Number(r.a) || 0; });
+    month.forEach(function(d){ CATS.forEach(function(c){ byCat[c.id] += Number(d[c.id]) || 0; }); });
 
     var barsHtml = '';
     CATS.forEach(function(c){
-      var v = byCat[c.id];
-      var pct = sum ? Math.round(v / sum * 100) : 0;
+      var v = byCat[c.id], pct = sum ? Math.round(v / sum * 100) : 0;
       barsHtml += '<div class="bar-row">' +
         '<span class="bar-name">' + c.name + '</span>' +
         '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%;background:' + c.shade + '"></span></span>' +
@@ -221,18 +233,19 @@
     });
     barsEl.innerHTML = barsHtml;
 
-    // 流水
-    var sorted = month.slice().sort(function(a,b){ return (b.t||0) - (a.t||0); });
-    if(!sorted.length){
-      listEl.innerHTML = '<p class="empty">这个月还没记。上面输个金额，点一下类别就行。</p>';
+    // 每天
+    if(!month.length){
+      listEl.innerHTML = '<p class="empty">这个月还没记。上面四个格子填一下，点「记上今天」。</p>';
     } else {
-      listEl.innerHTML = sorted.map(function(r, i){
-        var d = (r.d || '').slice(5).replace('-', '月') + '日';
-        return '<div class="item">' +
-          '<span class="item-main"><span class="item-date">' + d + '</span>' +
-          '<span class="item-cat">' + (CATNAME[r.c] || '其他') + '</span>' +
-          '<span class="item-amt">¥' + money(Number(r.a) || 0) + '</span></span>' +
-          '<span class="del" data-t="' + (r.t || 0) + '">×</span>' +
+      var sorted = month.slice().sort(function(a,b){ return a.d < b.d ? 1 : -1; });
+      listEl.innerHTML = sorted.map(function(d){
+        var parts = CATS.filter(function(c){ return Number(d[c.id]) > 0; })
+          .map(function(c){ return c.name + ' ' + money(d[c.id]); });
+        var ds = d.d.slice(5).replace('-', '月') + '日';
+        return '<div class="day">' +
+          '<span class="day-left"><span class="day-date">' + ds + '</span>' +
+          '<span class="day-detail">' + (parts.length ? parts.join(' · ') : '空的') + '</span></span>' +
+          '<span class="day-sum">¥' + money(daySum(d)) + '</span>' +
         '</div>';
       }).join('');
     }
@@ -241,36 +254,41 @@
       '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>　<span class="link" id="export">导出账本</span>';
   }
 
-  async function addExpense(catId){
-    var amtEl = document.getElementById('amt');
-    var errEl = document.getElementById('err');
-    var v = parseFloat(amtEl.value);
-    if(!v || v <= 0 || v > 100000){ errEl.textContent = '先输个金额，比如 15.5'; return; }
-
-    var btns = formEl.querySelectorAll('.cat');
-    btns.forEach(function(b){ b.disabled = true; });
-    try{
-      var cur = await readAll();
-      var rows = cur.rows.slice();
-      rows.push({ d: dk(new Date()), a: Math.round(v*100)/100, c: catId, t: Date.now() });
-      await writeAll(rows, cur.sha);
-      render(rows);
-      var again = document.getElementById('amt');
-      if(again) again.focus();
-    }catch(e){
-      btns.forEach(function(b){ b.disabled = false; });
-      errEl.textContent = e.message + '，再点一次试试';
-    }
+  function renderSetup(){
+    totalEl.textContent = '—';
+    barsEl.innerHTML = ''; listEl.innerHTML = '';
+    formEl.innerHTML =
+      '<div class="setup">第一次用要贴一串口令，就是打卡页那个，同一个就行。</div>' +
+      '<input class="txt" id="tk" placeholder="粘贴口令" autocomplete="off" spellcheck="false">' +
+      '<p class="msg" id="tker"></p>' +
+      '<button class="solid" id="saveTk">存到这台设备</button>';
+    footEl.innerHTML = '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>';
   }
 
-  async function removeItem(t){
+  async function saveDay(){
+    var btn = document.getElementById('saveDay');
+    var msg = document.getElementById('msg');
+    var rec = { d: TODAY }, allZero = true;
+    CATS.forEach(function(c){
+      var v = parseFloat(document.getElementById('f_' + c.id).value);
+      rec[c.id] = (isNaN(v) || v < 0) ? 0 : Math.round(v*100)/100;
+      if(rec[c.id] > 0) allZero = false;
+    });
+    btn.disabled = true;
     try{
       var cur = await readAll();
-      var rows = cur.rows.filter(function(r){ return (r.t||0) !== t; });
-      await writeAll(rows, cur.sha);
-      render(rows);
+      var days = cur.days.slice();
+      var i = days.findIndex(function(x){ return x.d === TODAY; });
+      if(allZero){ if(i > -1) days.splice(i, 1); }
+      else if(i > -1) days[i] = rec; else days.push(rec);
+      await writeAll(days, cur.sha);
+      render(days);
+      var m2 = document.getElementById('msg');
+      if(m2) m2.textContent = allZero ? '今天清空了' : '记上了';
+      if(m2) m2.className = 'msg ok';
     }catch(e){
-      footEl.innerHTML = '<span class="err">删不掉：' + e.message + '</span>';
+      btn.disabled = false;
+      msg.textContent = e.message + '，再试一次';
     }
   }
 
@@ -284,7 +302,7 @@
     try{
       var cur = await readAll();
       if(my !== seq) return;
-      render(cur.rows);
+      render(cur.days);
     }catch(e){
       if(my !== seq) return;
       footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
@@ -293,9 +311,7 @@
 
   document.addEventListener('click', async function(e){
     if(e.target.id === 'saveTk'){
-      var btn = e.target;
-      var el = document.getElementById('tk');
-      var er = document.getElementById('tker');
+      var btn = e.target, el = document.getElementById('tk'), er = document.getElementById('tker');
       var v = (el.value || '').trim();
       if(!v){ er.textContent = '先把口令粘贴进来'; return; }
       btn.disabled = true; btn.textContent = '检查中…';
@@ -310,14 +326,11 @@
       refresh();
       return;
     }
-    if(e.target.id === 'goto'){
-      location.href = './';
-      return;
-    }
+    if(e.target.id === 'saveDay'){ saveDay(); return; }
     if(e.target.id === 'export'){
       try{
         var cur = await readAll();
-        var blob = new Blob([JSON.stringify(cur.rows, null, 2)], { type:'application/json' });
+        var blob = new Blob([JSON.stringify(cur.days, null, 2)], { type:'application/json' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url; a.download = '账本-' + dk(new Date()) + '.json'; a.click();
@@ -325,10 +338,6 @@
       }catch(err){ footEl.innerHTML = '<span class="err">导出失败</span>'; }
       return;
     }
-    var cat = e.target.closest('button[data-cat]');
-    if(cat){ addExpense(cat.dataset.cat); return; }
-    var del = e.target.closest('.del');
-    if(del){ removeItem(Number(del.dataset.t)); return; }
   });
 
   refresh();
