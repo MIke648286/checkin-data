@@ -59,21 +59,37 @@
   }
   input.txt:focus{border-color:#111}
 
+  input.note{
+    width:100%;margin-top:14px;padding:9px 0;font:inherit;font-size:12.5px;color:#111;
+    background:transparent;border:0;border-bottom:1px solid #e7e7e7;outline:0;
+  }
+  input.note::placeholder{color:#c0c0c0}
+  input.note:focus{border-bottom-color:#111}
+
   .setup{font-size:12px;line-height:1.85;color:#6b6b6b;margin-top:14px}
   .setup a{color:#111}
   .setup ol{padding-left:18px;margin-top:8px}
   .setup li{margin-bottom:4px}
 
-  /* 最近 30 天 */
   .cal{margin-top:28px}
   .cal-title{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase}
   .cal-row{display:flex;align-items:center;gap:12px;margin-top:10px}
   .cal-name{font-size:11px;color:#8c8c8c;width:46px;flex:none}
   .cells{display:flex;gap:3px;flex:1}
-  .cell{height:10px;flex:1;background:#ededed}
+  .cell{height:10px;flex:1;background:#ededed;cursor:pointer}
   .cell.on{background:#111}
   .cell.today{outline:1px solid #111;outline-offset:1px}
   .cal-foot{font-size:10.5px;color:#b0b0b0;margin-top:8px;letter-spacing:.04em}
+  .cal-note{font-size:12px;color:#111;margin-top:12px;min-height:18px;line-height:1.6}
+  .cal-note span{color:#9a9a9a;font-size:11px;margin-right:6px}
+
+  .report{margin-top:32px;border-top:1px solid #111;opacity:.999;padding-top:16px}
+  .rep-title{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase}
+  .rep-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;font-size:12.5px}
+  .rep-name{color:#111}
+  .rep-num{font-variant-numeric:tabular-nums;color:#111}
+  .rep-num em{font-style:normal;color:#9a9a9a;font-size:11px;margin-left:6px}
+  .rep-foot{font-size:10.5px;color:#b0b0b0;margin-top:12px}
 
   footer{margin-top:28px;font-size:11px;line-height:1.8;color:#a5a5a5}
   .err{color:#b3261e}
@@ -89,6 +105,7 @@
   <div class="progress" id="progress"></div>
   <section id="cards"></section>
   <section id="calendar"></section>
+  <section id="report"></section>
   <footer id="foot"></footer>
 </main>
 
@@ -109,6 +126,7 @@
 
   var cards = document.getElementById('cards');
   var calEl = document.getElementById('calendar');
+  var repEl = document.getElementById('report');
   var progressEl = document.getElementById('progress');
   var footEl = document.getElementById('foot');
 
@@ -136,49 +154,73 @@
     return h;
   }
 
-  // ── 每人一份文件，各写各的，两个人怎么同时点都不会互相覆盖 ──
-  var mockDays = { 1: [], 2: [] };
+  // 老数据是 ["2026-11-25"]，新数据是 [{d:"2026-11-25", n:"留言"}]，都认
+  function norm(list){
+    return (list || []).map(function(x){
+      if(typeof x === 'string') return { d: x, n: '' };
+      if(x && x.d) return { d: x.d, n: x.n || '' };
+      return null;
+    }).filter(Boolean);
+  }
+
+  var mockEntries = { 1: [], 2: [] };
   if(MOCK){
     var back = function(k){ var d = new Date(); d.setDate(d.getDate()-k); return dk(d); };
-    mockDays = { 1:[back(0),back(1),back(2),back(3)], 2:[back(0)] };
+    mockEntries = {
+      1:[{d:back(0),n:'今天好困还是背完了'},{d:back(1),n:''},{d:back(2),n:''},{d:back(3),n:''}],
+      2:[{d:back(0),n:'先打了，你快点'}]
+    };
   }
 
   function fileUrl(w){ return BASE + 'u' + w + '.json'; }
 
   async function readOne(w){
-    if(MOCK) return { days: mockDays[w].slice(), sha: 'mock' };
+    if(MOCK) return { entries: norm(mockEntries[w]), sha: 'mock' };
     var r = await fetch(fileUrl(w) + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
-    if(r.status === 404) return { days: [], sha: null };
+    if(r.status === 404) return { entries: [], sha: null };
     if(!r.ok) throw new Error('读取失败（' + r.status + '）');
     var j = await r.json();
-    return { days: JSON.parse(b64dec(j.content)), sha: j.sha };
+    return { entries: norm(JSON.parse(b64dec(j.content))), sha: j.sha };
   }
 
-  async function writeOne(w, days, sha){
-    if(MOCK){ mockDays[w] = days.slice(); return; }
+  async function writeOne(w, entries, sha){
+    if(MOCK){ mockEntries[w] = entries.slice(); return; }
     var r = await fetch(fileUrl(w), {
       method: 'PUT',
       headers: H({ 'Content-Type':'application/json' }),
-      body: JSON.stringify({ message: '打卡 ' + dk(new Date()), content: b64enc(JSON.stringify(days)), sha: sha || undefined })
+      body: JSON.stringify({ message: '打卡 ' + dk(new Date()), content: b64enc(JSON.stringify(entries)), sha: sha || undefined })
     });
     if(!r.ok) throw new Error('保存失败（' + r.status + '）');
   }
 
-  // 刚写完的这一下记在心里：读接口有 60 秒缓存，别拿旧数据把刚点的结果盖回去
   var lastWrite = null; // { who, day, added, at }
 
   async function toggle(w){
     var t = dk(new Date());
     for(var attempt = 0; attempt < 2; attempt++){
       var r = await readOne(w);
-      var days = r.days.slice();
-      var at = days.indexOf(t);
+      var entries = r.entries.slice();
+      var at = entries.findIndex(function(e){ return e.d === t; });
       var added = at === -1;
-      if(added) days.push(t); else days.splice(at, 1);
-      try { await writeOne(w, days, r.sha); return { days: days, added: added }; }
+      if(added) entries.push({ d: t, n: '' }); else entries.splice(at, 1);
+      try { await writeOne(w, entries, r.sha); return { entries: entries, added: added }; }
       catch(e){ if(attempt === 1) throw e; }
     }
   }
+
+  async function saveNote(w, day, note){
+    for(var attempt = 0; attempt < 2; attempt++){
+      var r = await readOne(w);
+      var entries = r.entries.slice();
+      var e = entries.find(function(x){ return x.d === day; });
+      if(!e) return;
+      e.n = note;
+      try { await writeOne(w, entries, r.sha); return; }
+      catch(err){ if(attempt === 1) throw err; }
+    }
+  }
+
+  function dayList(entries){ return entries.map(function(e){ return e.d; }); }
 
   function streak(days){
     var set = new Set(days), d = new Date();
@@ -191,7 +233,7 @@
   function renderSetup(){
     progressEl.textContent = '';
     document.getElementById('whoami').textContent = '';
-    calEl.innerHTML = '';
+    calEl.innerHTML = ''; repEl.innerHTML = '';
     cards.innerHTML =
       '<div class="setup">第一次用要贴一串口令。生成一次就好，两个人的手机上各贴一次。</div>' +
       '<ol class="setup">' +
@@ -209,7 +251,7 @@
   function renderPick(){
     progressEl.textContent = '';
     document.getElementById('whoami').textContent = '';
-    calEl.innerHTML = '';
+    calEl.innerHTML = ''; repEl.innerHTML = '';
     cards.innerHTML =
       '<p class="hint" style="margin-top:24px">你是哪一位？点一次就好。</p>' +
       '<div class="pick">' +
@@ -219,36 +261,63 @@
   }
 
   function recentDays(n){
-    var out = [], d = new Date();
-    for(var i = n-1; i >= 0; i--){
-      var x = new Date(); x.setDate(d.getDate() - i);
-      out.push(dk(x));
-    }
+    var out = [];
+    for(var i = n-1; i >= 0; i--){ var x = new Date(); x.setDate(x.getDate() - i); out.push(dk(x)); }
     return out;
   }
 
-  function renderCalendar(u1, u2){
+  function renderCalendar(e1, e2){
     var days = recentDays(30), t = dk(new Date());
-    var setA = new Set(u1), setB = new Set(u2);
+    var setA = new Set(dayList(e1)), setB = new Set(dayList(e2));
     var html = '<p class="cal-title">最近 30 天</p>';
-    [[NAMES[0], setA], [NAMES[1], setB]].forEach(function(pair){
+    [[NAMES[0], setA, e1], [NAMES[1], setB, e2]].forEach(function(pair, idx){
       html += '<div class="cal-row"><span class="cal-name">' + pair[0] + '</span><span class="cells">';
       days.forEach(function(d){
         var cls = 'cell' + (pair[1].has(d) ? ' on' : '') + (d === t ? ' today' : '');
-        html += '<span class="' + cls + '"></span>';
+        html += '<span class="' + cls + '" data-d="' + d + '" data-w="' + (idx+1) + '"></span>';
       });
       html += '</span></div>';
     });
-    html += '<p class="cal-foot">左到右 = 从 ' + days[0].slice(5).replace('-','月') + '日 到今天</p>';
+    html += '<p class="cal-foot">左到右 = 从 ' + days[0].slice(5).replace('-','月') + '日 到今天，点格子看那天的留言</p>';
+    html += '<p class="cal-note" id="calNote"></p>';
     calEl.innerHTML = html;
+  }
+
+  function monthStats(entries, ym){
+    var list = entries.filter(function(e){ return e.d.indexOf(ym) === 0; }).map(function(e){ return e.d; }).sort();
+    var max = 0, cur = 0, prev = null;
+    list.forEach(function(d){
+      if(prev){
+        var p = new Date(prev + 'T00:00:00'), c = new Date(d + 'T00:00:00');
+        var gap = Math.round((c - p) / 86400000);
+        cur = gap === 1 ? cur + 1 : 1;
+      } else cur = 1;
+      if(cur > max) max = cur;
+      prev = d;
+    });
+    return { count: list.length, max: max };
+  }
+
+  function renderReport(e1, e2){
+    var y = today.getFullYear(), m = today.getMonth() + 1;
+    var ym = y + '-' + pad(m);
+    var a = monthStats(e1, ym), b = monthStats(e2, ym);
+    var html = '<p class="rep-title">' + m + ' 月战报</p>';
+    [[NAMES[0], a], [NAMES[1], b]].forEach(function(pair){
+      html += '<div class="rep-row"><span class="rep-name">' + pair[0] + '</span>' +
+        '<span class="rep-num">' + pair[1].count + ' 天<em>最长连 ' + pair[1].max + ' 天</em></span></div>';
+    });
+    html += '<p class="rep-foot">到今天为止，这个月打了几天</p>';
+    repEl.innerHTML = html;
   }
 
   function render(data){
     var t = dk(new Date());
-    var mine = (data['u' + who] || []).slice();
-    var other = (data['u' + (who === 1 ? 2 : 1)] || []).slice();
-    var doneMine = mine.indexOf(t) > -1;
-    var doneOther = other.indexOf(t) > -1;
+    var mine = data['u' + who] || [];
+    var other = data['u' + (who === 1 ? 2 : 1)] || [];
+    var mineDays = dayList(mine), otherDays = dayList(other);
+    var doneMine = mineDays.indexOf(t) > -1;
+    var doneOther = otherDays.indexOf(t) > -1;
     var doneCount = (doneMine ? 1 : 0) + (doneOther ? 1 : 0);
 
     document.getElementById('whoami').innerHTML = '你是 <b>' + NAMES[who-1] + '</b>';
@@ -257,14 +326,16 @@
 
     [1,2].forEach(function(w){
       var isMe = w === who;
-      var list = isMe ? mine : other;
+      var entries = isMe ? mine : other;
       var done = isMe ? doneMine : doneOther;
-      var n = streak(list);
+      var n = streak(dayList(entries));
 
       var hint;
       if(done) hint = isMe ? '点按钮可以撤销' : '今天已经打过了';
       else if(n > 0) hint = isMe ? ('今天是第 ' + (n+1) + ' 天，不打就断') : ('今天还没打，连着 ' + n + ' 天了');
       else hint = isMe ? '点一下就算打过' : '今天还没打';
+
+      var myNote = isMe && done ? (entries.find(function(e){ return e.d === t; }) || {}).n || '' : '';
 
       var card = document.createElement('div');
       card.className = 'card' + (done ? ' today' : '') + (isMe ? ' me' : '');
@@ -275,11 +346,13 @@
         '</div>' +
         '<div class="count"><span class="num">' + n + '</span><span class="unit">天连续</span></div>' +
         '<p class="hint">' + hint + '</p>' +
+        (isMe && done ? '<input class="note" id="noteToday" placeholder="给今天留一句，不写也行" value="' + myNote.replace(/"/g,'&quot;') + '" maxlength="40">' : '') +
         (isMe ? '<button class="' + (done?'done':'') + '" data-act="' + (done?'undo':'in') + '">' + (done ? '已打卡' : '打卡') + '</button>' : '');
       cards.appendChild(card);
     });
 
-    renderCalendar(data.u1 || [], data.u2 || []);
+    renderCalendar(mine, other);
+    renderReport(mine, other);
 
     footEl.innerHTML = '两个人各存各的记录，同时点也不会互相覆盖。<br>' +
       '<span class="link" id="export">导出记录</span>　<span class="link" id="resetAll">换口令 / 换身份</span>';
@@ -296,13 +369,15 @@
     try{
       var a = await readOne(1), b = await readOne(2);
       if(my !== seq) return;
-      var data = { u1: a.days, u2: b.days };
+      var data = { u1: a.entries, u2: b.entries };
       if(lastWrite && Date.now() - lastWrite.at < 120000){
         var k = 'u' + lastWrite.who;
-        var days = (data[k] || []).slice();
-        var has = days.indexOf(lastWrite.day) > -1;
+        var list = (data[k] || []).slice();
+        var has = list.some(function(e){ return e.d === lastWrite.day; });
         if(has !== lastWrite.added){
-          data[k] = lastWrite.added ? days.concat([lastWrite.day]) : days.filter(function(d){ return d !== lastWrite.day; });
+          data[k] = lastWrite.added
+            ? list.concat([{ d: lastWrite.day, n: '' }])
+            : list.filter(function(e){ return e.d !== lastWrite.day; });
         }
       }
       render(data);
@@ -322,9 +397,8 @@
       save.textContent = '检查中…';
       note.textContent = '';
       TOKEN = v;
-      try {
-        await readOne(1);
-      } catch(err) {
+      try { await readOne(1); }
+      catch(err) {
         TOKEN = '';
         save.disabled = false;
         save.textContent = '存到这台设备';
@@ -352,21 +426,43 @@
         if(r){
           lastWrite = { who: who, day: dk(new Date()), added: r.added, at: Date.now() };
           var a = await readOne(1), b = await readOne(2);
-          var data = { u1: a.days, u2: b.days };
-          data['u' + who] = r.days;
+          var data = { u1: a.entries, u2: b.entries };
+          data['u' + who] = r.entries;
           render(data);
         }
         setTimeout(refresh, 4000);
       }
       catch(err){ footEl.innerHTML = '<span class="err">' + err.message + '，再点一次试试。</span>'; btn.disabled = false; btn.textContent = '打卡'; }
     }
+    // 点日历格子看那天的话
+    var cell = e.target.closest('.cell');
+    if(cell){
+      var d = cell.dataset.d, w = +cell.dataset.w;
+      var list = w === who ? (await readOne(who)).entries : (await readOne(w)).entries;
+      var item = list.find(function(x){ return x.d === d; });
+      var noteBox = document.getElementById('calNote');
+      if(!noteBox) return;
+      var label = d.slice(5).replace('-', '月') + '日 · ' + NAMES[w-1];
+      if(!item) noteBox.innerHTML = '<span>' + label + '</span>那天没打卡';
+      else if(!item.n) noteBox.innerHTML = '<span>' + label + '</span>打了卡，没留话';
+      else noteBox.innerHTML = '<span>' + label + '</span>' + item.n;
+    }
+  });
+
+  cards.addEventListener('change', async function(e){
+    if(e.target.id !== 'noteToday') return;
+    var v = (e.target.value || '').trim();
+    try { await saveNote(who, dk(new Date()), v); }
+    catch(err){ footEl.innerHTML = '<span class="err">留言没存上，再试一次。</span>'; }
   });
 
   document.addEventListener('click', async function(e){
     if(e.target.id === 'export'){
       try{
         var a = await readOne(1), b = await readOne(2);
-        var blob = new Blob([JSON.stringify({ [NAMES[0]]: a.days, [NAMES[1]]: b.days }, null, 2)], { type:'application/json' });
+        var out = {};
+        out[NAMES[0]] = a.entries; out[NAMES[1]] = b.entries;
+        var blob = new Blob([JSON.stringify(out, null, 2)], { type:'application/json' });
         var url = URL.createObjectURL(blob);
         var link = document.createElement('a');
         link.href = url;
