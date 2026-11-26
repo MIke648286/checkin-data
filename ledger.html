@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>账本</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"Inter","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    background:#fff;color:#111;min-height:100vh;
+    display:flex;justify-content:center;padding:64px 22px 44px;
+    -webkit-font-smoothing:antialiased;
+  }
+  main{width:100%;max-width:400px}
+
+  .eyebrow{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase}
+  h1{font-size:21px;font-weight:600;letter-spacing:-.01em;margin-top:12px}
+  .rule{height:1px;background:#111;opacity:.12;margin:22px 0 0}
+
+  .total{display:flex;align-items:baseline;gap:8px;margin-top:24px}
+  .tnum{font-size:52px;font-weight:300;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+  .tunit{font-size:11.5px;letter-spacing:.12em;color:#8c8c8c}
+
+  #form{margin-top:26px}
+  #amt{
+    width:100%;padding:14px 0;font:inherit;font-size:22px;font-weight:300;letter-spacing:-.01em;
+    color:#111;background:transparent;border:0;border-bottom:1px solid #111;outline:0;
+    font-variant-numeric:tabular-nums;
+  }
+  #amt::placeholder{color:#c9c9c9;font-weight:300}
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .cat{
+    padding:13px 10px;font:inherit;font-size:12.5px;letter-spacing:.08em;
+    background:#fff;color:#111;border:1px solid #111;cursor:pointer;text-align:center;
+    transition:background .12s,color .12s;
+  }
+  .cat:hover{background:#111;color:#fff}
+  .cat:disabled{opacity:.4;cursor:default}
+  .cat .shade{display:inline-block;width:6px;height:6px;margin-right:8px;vertical-align:middle}
+  .err{color:#b3261e;font-size:11.5px;margin-top:10px;min-height:16px}
+
+  .bars{margin-top:34px}
+  .bar-row{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12px}
+  .bar-name{width:38px;flex:none;color:#111}
+  .bar-track{flex:1;height:10px;background:#ededed;position:relative}
+  .bar-fill{display:block;height:100%;background:#111;transition:width .25s}
+  .bar-num{width:104px;flex:none;text-align:right;color:#8c8c8c;font-variant-numeric:tabular-nums}
+  .bar-num b{color:#111;font-weight:500}
+
+  .list{margin-top:34px;border-top:1px solid #111;opacity:.999;padding-top:6px}
+  .item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #f0f0f0;font-size:12.5px}
+  .item-main{display:flex;gap:10px;align-items:baseline;min-width:0}
+  .item-date{color:#a5a5a5;font-size:11px;font-variant-numeric:tabular-nums;flex:none}
+  .item-cat{color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item-amt{font-variant-numeric:tabular-nums;margin-left:8px}
+  .del{color:#c0c0c0;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;flex:none}
+  .del:hover{color:#b3261e}
+  .empty{font-size:12px;color:#a5a5a5;padding:18px 0}
+
+  footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
+  .link{color:#a5a5a5;text-decoration:underline;cursor:pointer;font-size:11px}
+
+  .setup{font-size:12px;line-height:1.85;color:#6b6b6b;margin-top:14px}
+  .setup a{color:#111}
+  input.txt{
+    width:100%;margin-top:14px;padding:13px 12px;font:inherit;font-size:12.5px;
+    border:1px solid #ddd;border-radius:0;outline:0;color:#111;
+  }
+  input.txt:focus{border-color:#111}
+  button.solid{
+    width:100%;margin-top:14px;padding:12px;font:inherit;font-size:12.5px;letter-spacing:.1em;
+    background:#111;color:#fff;border:1px solid #111;cursor:pointer;
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Ledger</p>
+  <h1 id="title">—</h1>
+  <div class="rule"></div>
+  <div class="total"><span class="tnum" id="total">—</span><span class="tunit">元 · 本月</span></div>
+  <section id="form"></section>
+  <section class="bars" id="bars"></section>
+  <section class="list" id="list"></section>
+  <footer id="foot"></footer>
+</main>
+
+<script>
+(function(){
+  var OWNER = 'MIke648286', REPO = 'checkin-data', FILE = 'ledger.json';
+  var API = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + FILE;
+  var MOCK = /[?&]mock=1/.test(location.search);
+
+  var CATS = [
+    { id:'food',  name:'吃饭', shade:'#111111' },
+    { id:'move',  name:'交通', shade:'#4d4d4d' },
+    { id:'daily', name:'日用', shade:'#8a8a8a' },
+    { id:'other', name:'其他', shade:'#c7c7c7' }
+  ];
+  var CATNAME = {};
+  CATS.forEach(function(c){ CATNAME[c.id] = c.name; });
+
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  var dk = function(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
+  var today = new Date();
+  var YM = today.getFullYear() + '-' + pad(today.getMonth()+1);
+
+  var title = document.getElementById('title');
+  title.textContent = (today.getMonth()+1) + ' 月';
+
+  var totalEl = document.getElementById('total');
+  var formEl = document.getElementById('form');
+  var barsEl = document.getElementById('bars');
+  var listEl = document.getElementById('list');
+  var footEl = document.getElementById('foot');
+
+  var TOKEN = '';
+  try { TOKEN = localStorage.getItem('checkin.token') || ''; } catch(e){}
+
+  function b64enc(str){
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for(var i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64dec(s){
+    var bin = atob(s.replace(/\n/g,'')), bytes = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function H(extra){
+    var h = { 'Accept':'application/vnd.github+json', 'Authorization':'Bearer ' + TOKEN };
+    if(extra) for(var k in extra) h[k] = extra[k];
+    return h;
+  }
+
+  var mockRows = [];
+  if(MOCK){
+    mockRows = [
+      { d:'2026-11-26', a:15, c:'food', t:4 },
+      { d:'2026-11-25', a:6, c:'move', t:3 },
+      { d:'2026-11-24', a:32, c:'daily', t:2 },
+      { d:'2026-11-23', a:22, c:'food', t:1 }
+    ];
+  }
+
+  async function readAll(){
+    if(MOCK) return { rows: mockRows.slice(), sha: 'mock' };
+    var r = await fetch(API + '?t=' + Date.now(), { headers: H(), cache:'no-store' });
+    if(r.status === 404) return { rows: [], sha: null };
+    if(!r.ok) throw new Error('读取失败（' + r.status + '）');
+    var j = await r.json();
+    var rows = JSON.parse(b64dec(j.content));
+    return { rows: Array.isArray(rows) ? rows : [], sha: j.sha };
+  }
+
+  async function writeAll(rows, sha){
+    if(MOCK){ mockRows = rows.slice(); return; }
+    var r = await fetch(API, {
+      method:'PUT',
+      headers: H({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({ message:'记一笔 ' + dk(new Date()), content: b64enc(JSON.stringify(rows)), sha: sha || undefined })
+    });
+    if(!r.ok) throw new Error('保存失败（' + r.status + '）');
+  }
+
+  function money(n){
+    return (Math.round(n*100)/100).toFixed(2).replace(/\.00$/, '');
+  }
+
+  function renderSetup(){
+    totalEl.textContent = '—';
+    barsEl.innerHTML = ''; listEl.innerHTML = '';
+    formEl.innerHTML =
+      '<div class="setup">第一次用要贴一串口令，就是打卡页那个，同一个就行。生成步骤见打卡页，或者点下面的链接。</div>' +
+      '<input class="txt" id="tk" placeholder="粘贴口令" autocomplete="off" spellcheck="false">' +
+      '<p class="err" id="tker">'  + '</p>' +
+      '<button class="solid" id="saveTk">存到这台设备</button>';
+    footEl.innerHTML = '数据存在同一个仓库的 ledger.json 里，只有你能看到内容。<br>' +
+      '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>　<span class="link" id="goto">生成口令的方法</span>';
+  }
+
+  function render(rows){
+    var month = rows.filter(function(r){ return (r.d||'').indexOf(YM) === 0; });
+    var sum = month.reduce(function(s,r){ return s + (Number(r.a) || 0); }, 0);
+
+    totalEl.textContent = sum ? money(sum) : '0';
+
+    formEl.innerHTML =
+      '<input id="amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="金额">' +
+      '<div class="cats" id="cats"></div>' +
+      '<p class="err" id="err"></p>';
+
+    var catsBox = document.getElementById('cats');
+    CATS.forEach(function(c){
+      var b = document.createElement('button');
+      b.className = 'cat';
+      b.dataset.cat = c.id;
+      b.innerHTML = '<span class="shade" style="background:' + c.shade + '"></span>' + c.name;
+      catsBox.appendChild(b);
+    });
+
+    // 类别横条
+    var byCat = {};
+    CATS.forEach(function(c){ byCat[c.id] = 0; });
+    month.forEach(function(r){ if(byCat[r.c] !== undefined) byCat[r.c] += Number(r.a) || 0; });
+
+    var barsHtml = '';
+    CATS.forEach(function(c){
+      var v = byCat[c.id];
+      var pct = sum ? Math.round(v / sum * 100) : 0;
+      barsHtml += '<div class="bar-row">' +
+        '<span class="bar-name">' + c.name + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%;background:' + c.shade + '"></span></span>' +
+        '<span class="bar-num"><b>¥' + money(v) + '</b> ' + pct + '%</span>' +
+      '</div>';
+    });
+    barsEl.innerHTML = barsHtml;
+
+    // 流水
+    var sorted = month.slice().sort(function(a,b){ return (b.t||0) - (a.t||0); });
+    if(!sorted.length){
+      listEl.innerHTML = '<p class="empty">这个月还没记。上面输个金额，点一下类别就行。</p>';
+    } else {
+      listEl.innerHTML = sorted.map(function(r, i){
+        var d = (r.d || '').slice(5).replace('-', '月') + '日';
+        return '<div class="item">' +
+          '<span class="item-main"><span class="item-date">' + d + '</span>' +
+          '<span class="item-cat">' + (CATNAME[r.c] || '其他') + '</span>' +
+          '<span class="item-amt">¥' + money(Number(r.a) || 0) + '</span></span>' +
+          '<span class="del" data-t="' + (r.t || 0) + '">×</span>' +
+        '</div>';
+      }).join('');
+    }
+
+    footEl.innerHTML = '数据存在同一个仓库的 ledger.json 里。<br>' +
+      '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>　<span class="link" id="export">导出账本</span>';
+  }
+
+  async function addExpense(catId){
+    var amtEl = document.getElementById('amt');
+    var errEl = document.getElementById('err');
+    var v = parseFloat(amtEl.value);
+    if(!v || v <= 0 || v > 100000){ errEl.textContent = '先输个金额，比如 15.5'; return; }
+
+    var btns = formEl.querySelectorAll('.cat');
+    btns.forEach(function(b){ b.disabled = true; });
+    try{
+      var cur = await readAll();
+      var rows = cur.rows.slice();
+      rows.push({ d: dk(new Date()), a: Math.round(v*100)/100, c: catId, t: Date.now() });
+      await writeAll(rows, cur.sha);
+      render(rows);
+      var again = document.getElementById('amt');
+      if(again) again.focus();
+    }catch(e){
+      btns.forEach(function(b){ b.disabled = false; });
+      errEl.textContent = e.message + '，再点一次试试';
+    }
+  }
+
+  async function removeItem(t){
+    try{
+      var cur = await readAll();
+      var rows = cur.rows.filter(function(r){ return (r.t||0) !== t; });
+      await writeAll(rows, cur.sha);
+      render(rows);
+    }catch(e){
+      footEl.innerHTML = '<span class="err">删不掉：' + e.message + '</span>';
+    }
+  }
+
+  var seq = 0;
+  async function refresh(){
+    if(!TOKEN){
+      if(!document.getElementById('tk')) renderSetup();
+      return;
+    }
+    var my = ++seq;
+    try{
+      var cur = await readAll();
+      if(my !== seq) return;
+      render(cur.rows);
+    }catch(e){
+      if(my !== seq) return;
+      footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
+    }
+  }
+
+  document.addEventListener('click', async function(e){
+    if(e.target.id === 'saveTk'){
+      var btn = e.target;
+      var el = document.getElementById('tk');
+      var er = document.getElementById('tker');
+      var v = (el.value || '').trim();
+      if(!v){ er.textContent = '先把口令粘贴进来'; return; }
+      btn.disabled = true; btn.textContent = '检查中…';
+      TOKEN = v;
+      try { await readAll(); }
+      catch(err){
+        TOKEN = ''; btn.disabled = false; btn.textContent = '存到这台设备';
+        er.textContent = '口令不对，或者没有 checkin-data 的 Contents 读写权限';
+        return;
+      }
+      try{ localStorage.setItem('checkin.token', v); }catch(err){}
+      refresh();
+      return;
+    }
+    if(e.target.id === 'goto'){
+      location.href = './';
+      return;
+    }
+    if(e.target.id === 'export'){
+      try{
+        var cur = await readAll();
+        var blob = new Blob([JSON.stringify(cur.rows, null, 2)], { type:'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = '账本-' + dk(new Date()) + '.json'; a.click();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      }catch(err){ footEl.innerHTML = '<span class="err">导出失败</span>'; }
+      return;
+    }
+    var cat = e.target.closest('button[data-cat]');
+    if(cat){ addExpense(cat.dataset.cat); return; }
+    var del = e.target.closest('.del');
+    if(del){ removeItem(Number(del.dataset.t)); return; }
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
