@@ -43,6 +43,7 @@
   .star{font-size:17px;line-height:1;color:#d5d5d5;cursor:pointer;flex:none;padding-top:2px;user-select:none}
   .star.on{color:#111}
   .empty{font-size:12px;color:#a5a5a5;padding:22px 0}
+  .more{font-size:12px;color:#111;text-decoration:underline;cursor:pointer;padding:16px 0;text-align:center}
 
   footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
   .link{color:#a5a5a5;text-decoration:underline;cursor:pointer;font-size:11px}
@@ -174,13 +175,24 @@
     return starts.concat(contains, cn).slice(0, 40);
   }
 
+  var bookLimit = 60;
+
   function render(){
     if(mode === 'book'){
+      var q0 = (qEl.value || '').trim().toLowerCase();
       var items = book.map(function(w){ return WORDS_ALL.filter(function(x){ return x.w === w; })[0]; })
         .filter(Boolean);
+      if(q0){
+        items = items.filter(function(x){
+          return x.w.toLowerCase().indexOf(q0) > -1 || (x.t || '').indexOf(q0) > -1;
+        });
+      }
+      var shown = items.slice(0, bookLimit);
+      var more = items.length - shown.length;
       listEl.innerHTML = items.length
-        ? items.map(renderItem).join('')
-        : '<p class="empty">生词本还是空的。查词的时候点右边的 ☆ 就能收进来。</p>';
+        ? shown.map(renderItem).join('') +
+          (more > 0 ? '<p class="more" id="more">还有 ' + more + ' 个，点这里显示</p>' : '')
+        : '<p class="empty">' + (q0 ? '生词本里没有这个词' : '生词本还是空的。查词的时候点右边的 ☆ 就能收进来。') + '</p>';
       hintEl.textContent = items.length ? '收着 ' + items.length + ' 个' : '';
       return;
     }
@@ -200,7 +212,8 @@
     mode = m;
     tabSearch.className = 'tab' + (m === 'search' ? ' on' : '');
     tabBook.className = 'tab' + (m === 'book' ? ' on' : '');
-    qEl.style.display = m === 'search' ? '' : 'none';
+    qEl.placeholder = m === 'search' ? '输入英文或中文' : '在生词本里搜';
+    bookLimit = 60;
     render();
   }
 
@@ -211,6 +224,7 @@
   });
 
   listEl.addEventListener('click', async function(e){
+    if(e.target.id === 'more'){ bookLimit += 60; render(); return; }
     var star = e.target.closest('.star');
     if(!star) return;
     var w = star.dataset.w;
