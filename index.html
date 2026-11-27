@@ -215,7 +215,20 @@
       var e = entries.find(function(x){ return x.d === day; });
       if(!e) return;
       e.n = note;
-      try { await writeOne(w, entries, r.sha); return; }
+      try {
+        await writeOne(w, entries, r.sha);
+        // 顺手把本地缓存也改掉，刷新时先显示的就不会是没留言的旧样子
+        var cached = readCache();
+        if(cached){
+          var k = 'u' + w;
+          var list = (cached[k] || []).slice();
+          var i2 = list.findIndex(function(x){ return x.d === day; });
+          if(i2 > -1) list[i2] = { d: day, n: note };
+          cached[k] = list;
+          writeCache(cached);
+        }
+        return;
+      }
       catch(err){ if(attempt === 1) throw err; }
     }
   }
