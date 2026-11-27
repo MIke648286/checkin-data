@@ -358,6 +358,14 @@
       '<span class="link" id="export">导出记录</span>　<span class="link" id="resetAll">换口令 / 换身份</span>';
   }
 
+  // 上次读到的先存着：下次打开先拿它把画面填上，再去问 GitHub
+  function readCache(){
+    try{ var c = JSON.parse(localStorage.getItem('checkin.cache') || 'null'); return (c && c.u1 && c.u2) ? c : null; }catch(e){ return null; }
+  }
+  function writeCache(data){
+    try{ localStorage.setItem('checkin.cache', JSON.stringify({ u1: data.u1, u2: data.u2 })); }catch(e){}
+  }
+
   var seq = 0;
   async function refresh(){
     if(!TOKEN){
@@ -366,9 +374,12 @@
     }
     if(!who){ renderPick(); return; }
     var my = ++seq;
+    var cached = readCache();
+    if(cached) render({ u1: norm(cached.u1), u2: norm(cached.u2) });
     try{
-      var a = await readOne(1), b = await readOne(2);
+      var both = await Promise.all([readOne(1), readOne(2)]);
       if(my !== seq) return;
+      var a = both[0], b = both[1];
       var data = { u1: a.entries, u2: b.entries };
       if(lastWrite && Date.now() - lastWrite.at < 120000){
         var k = 'u' + lastWrite.who;
@@ -381,9 +392,11 @@
         }
       }
       render(data);
+      writeCache(data);
     }catch(e){
       if(my !== seq) return;
-      footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
+      if(cached) footEl.innerHTML = '<span class="err">暂时连不上，显示的是上次的数据。</span>';
+      else footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
     }
   }
 

@@ -101,12 +101,18 @@
   function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   async function loadWords(){
+    // 词库 400 多 KB，下载一次就存本地，下次打开直接用
+    try{
+      var cached = localStorage.getItem('dict.words');
+      if(cached){ var d0 = JSON.parse(cached); if(Array.isArray(d0) && d0.length) return d0; }
+    }catch(e){}
     // raw.githubusercontent.com 在国内不通，走 api.github.com 再解 base64
     var r = await fetch(BASE + 'words.json?t=' + Date.now(), { headers: H(), cache:'no-store' });
     if(!r.ok) throw new Error('词库没加载上（' + r.status + '）');
     var j = await r.json();
     var data = JSON.parse(b64dec(j.content));
     if(!Array.isArray(data)) throw new Error('词库格式不对');
+    try{ localStorage.setItem('dict.words', JSON.stringify(data)); }catch(e){}
     return data;
   }
 

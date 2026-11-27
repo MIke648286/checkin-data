@@ -322,6 +322,13 @@
     }
   }
 
+  function readCache(){
+    try{ var c = JSON.parse(localStorage.getItem('ledger.cache') || 'null'); return Array.isArray(c) ? c : null; }catch(e){ return null; }
+  }
+  function writeCache(days){
+    try{ localStorage.setItem('ledger.cache', JSON.stringify(days)); }catch(e){}
+  }
+
   var seq = 0;
   async function refresh(){
     if(!TOKEN){
@@ -329,13 +336,17 @@
       return;
     }
     var my = ++seq;
+    var cached = readCache();
+    if(cached) render(cached);          // 先拿上次的数填上，别让页面空着
     try{
       var cur = await readAll();
       if(my !== seq) return;
       render(cur.days);
+      writeCache(cur.days);
     }catch(e){
       if(my !== seq) return;
-      footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
+      if(cached) footEl.innerHTML = '<span class="err">暂时连不上，显示的是上次的数据。</span>';
+      else footEl.innerHTML = '<span class="err">' + (e.message || '连不上') + '，稍后刷新再试。</span>';
     }
   }
 
