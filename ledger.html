@@ -25,24 +25,33 @@
   .tunit{font-size:11.5px;letter-spacing:.12em;color:#8c8c8c}
 
   .sec-title{font-size:10.5px;letter-spacing:.2em;color:#9a9a9a;text-transform:uppercase;margin-top:34px}
+  .head-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:34px}
+  .head-row .sec-title{margin-top:0}
+  .clear{font-size:11px;color:#a5a5a5;text-decoration:underline;cursor:pointer}
 
-  .day-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-  .field{display:flex;flex-direction:column;gap:6px}
-  .field .lb{font-size:11px;color:#8c8c8c;letter-spacing:.06em}
-  .field input{
-    width:100%;padding:10px 0;font:inherit;font-size:19px;font-weight:300;
-    color:#111;background:transparent;border:0;border-bottom:1px solid #dcdcdc;outline:0;
+  #amt{
+    width:100%;margin-top:12px;padding:14px 0;font:inherit;font-size:22px;font-weight:300;
+    color:#111;background:transparent;border:0;border-bottom:1px solid #111;outline:0;
     font-variant-numeric:tabular-nums;
   }
-  .field input:focus{border-bottom-color:#111}
-  .field input::placeholder{color:#d5d5d5}
-  #saveDay{
-    width:100%;margin-top:16px;padding:13px;font:inherit;font-size:12.5px;letter-spacing:.1em;
-    background:#111;color:#fff;border:1px solid #111;cursor:pointer;transition:background .15s;
+  #amt::placeholder{color:#c9c9c9;font-weight:300}
+  #amt::-webkit-outer-spin-button,#amt::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  #amt{-moz-appearance:textfield;appearance:textfield}
+
+  .cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .cat{
+    display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    padding:13px 12px;font:inherit;font-size:12.5px;letter-spacing:.06em;
+    background:#fff;color:#111;border:1px solid #111;cursor:pointer;text-align:left;
+    transition:background .12s,color .12s;
   }
-  #saveDay:hover{background:#333}
-  #saveDay:disabled{opacity:.45;cursor:default}
-  .msg{font-size:11.5px;color:#b3261e;margin-top:8px;min-height:16px}
+  .cat:hover{background:#111;color:#fff}
+  .cat:disabled{opacity:.4;cursor:default}
+  .cat .lb{display:flex;align-items:center;gap:7px}
+  .cat .shade{display:inline-block;width:6px;height:6px;flex:none}
+  .cat .now{font-size:11.5px;color:#9a9a9a;font-variant-numeric:tabular-nums;letter-spacing:0}
+  .cat:hover .now{color:#c9c9c9}
+  .msg{font-size:11.5px;color:#b3261e;margin-top:10px;min-height:16px}
   .msg.ok{color:#5a5a5a}
 
   .bars{margin-top:12px}
@@ -63,9 +72,9 @@
 
   footer{margin-top:30px;font-size:11px;line-height:1.8;color:#a5a5a5}
   .link{color:#a5a5a5;text-decoration:underline;cursor:pointer;font-size:11px}
+  .err{color:#b3261e}
 
   .setup{font-size:12px;line-height:1.85;color:#6b6b6b;margin-top:14px}
-  .setup a{color:#111}
   input.txt{
     width:100%;margin-top:14px;padding:13px 12px;font:inherit;font-size:12.5px;
     border:1px solid #ddd;border-radius:0;outline:0;color:#111;
@@ -75,9 +84,6 @@
     width:100%;margin-top:14px;padding:12px;font:inherit;font-size:12.5px;letter-spacing:.1em;
     background:#111;color:#fff;border:1px solid #111;cursor:pointer;
   }
-  #amt::-webkit-outer-spin-button,#amt::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  .field input{-moz-appearance:textfield;appearance:textfield}
 </style>
 </head>
 <body>
@@ -87,8 +93,11 @@
   <div class="rule"></div>
   <div class="total"><span class="tnum" id="total">—</span><span class="tunit">元 · 本月</span></div>
 
-  <p class="sec-title" id="todayTitle">今天</p>
-  <div id="form"></div>
+  <div class="head-row">
+    <p class="sec-title" id="todayTitle">今天</p>
+    <span class="clear" id="clearDay">清空今天</span>
+  </div>
+  <section id="form"></section>
 
   <p class="sec-title">钱花在哪些类别</p>
   <section class="bars" id="bars"></section>
@@ -111,6 +120,8 @@
     { id:'daily', name:'日用', shade:'#8a8a8a' },
     { id:'other', name:'其他', shade:'#c7c7c7' }
   ];
+  var CATNAME = {};
+  CATS.forEach(function(c){ CATNAME[c.id] = c.name; });
 
   var pad = function(n){ return String(n).padStart(2,'0'); };
   var dk = function(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
@@ -118,8 +129,7 @@
   var YM = today.getFullYear() + '-' + pad(today.getMonth()+1);
   var TODAY = dk(today);
 
-  var title = document.getElementById('title');
-  title.textContent = (today.getMonth()+1) + ' 月';
+  document.getElementById('title').textContent = (today.getMonth()+1) + ' 月';
   document.getElementById('todayTitle').textContent = '今天 · ' + (today.getMonth()+1) + '月' + today.getDate() + '日';
 
   var totalEl = document.getElementById('total');
@@ -148,7 +158,7 @@
   }
 
   // 每天一条：{d:'2026-11-26', food:30, move:6, daily:0, other:0}
-  // 旧格式是一笔一条 {d,a,c,t}，读到时按天合并，老数据不丢
+  // 旧格式一笔一条 {d,a,c,t}，读进来按天合并
   function norm(list){
     var map = {};
     (list || []).forEach(function(r){
@@ -196,16 +206,22 @@
     if(!r.ok) throw new Error('保存失败（' + r.status + '）');
   }
 
+  function todayRec(days){
+    return days.filter(function(d){ return d.d === TODAY; })[0] || null;
+  }
+
   function renderForm(days){
-    var cur = days.filter(function(d){ return d.d === TODAY; })[0] || { food:0, move:0, daily:0, other:0 };
-    var html = '<div class="day-grid">';
+    var cur = todayRec(days) || { food:0, move:0, daily:0, other:0 };
+    var html = '<input id="amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="金额">' +
+      '<div class="cats">';
     CATS.forEach(function(c){
-      var v = cur[c.id] ? money(cur[c.id]) : '';
-      html += '<span class="field"><span class="lb">' + c.name + '</span>' +
-        '<input id="f_' + c.id + '" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="' + v + '">' +
-      '</span>';
+      var v = Number(cur[c.id]) || 0;
+      html += '<button class="cat" data-add="' + c.id + '">' +
+        '<span class="lb"><span class="shade" style="background:' + c.shade + '"></span>' + c.name + '</span>' +
+        '<span class="now">' + (v ? '¥' + money(v) : '—') + '</span>' +
+      '</button>';
     });
-    html += '</div><button id="saveDay">记上今天</button><p class="msg" id="msg"></p>';
+    html += '</div><p class="msg" id="msg"></p>';
     formEl.innerHTML = html;
   }
 
@@ -214,10 +230,8 @@
     var sum = month.reduce(function(s,d){ return s + daySum(d); }, 0);
 
     totalEl.textContent = sum ? money(sum) : '0';
-
     renderForm(days);
 
-    // 类别横条
     var byCat = {};
     CATS.forEach(function(c){ byCat[c.id] = 0; });
     month.forEach(function(d){ CATS.forEach(function(c){ byCat[c.id] += Number(d[c.id]) || 0; }); });
@@ -233,9 +247,8 @@
     });
     barsEl.innerHTML = barsHtml;
 
-    // 每天
     if(!month.length){
-      listEl.innerHTML = '<p class="empty">这个月还没记。上面四个格子填一下，点「记上今天」。</p>';
+      listEl.innerHTML = '<p class="empty">这个月还没记。上面输个金额，点一下类别就加进去了。</p>';
     } else {
       var sorted = month.slice().sort(function(a,b){ return a.d < b.d ? 1 : -1; });
       listEl.innerHTML = sorted.map(function(d){
@@ -250,7 +263,7 @@
       }).join('');
     }
 
-    footEl.innerHTML = '数据存在同一个仓库的 ledger.json 里。<br>' +
+    footEl.innerHTML = '输金额 → 点类别，就累加到今天；同一个类别记几次就一直往上加。<br>' +
       '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>　<span class="link" id="export">导出账本</span>';
   }
 
@@ -265,30 +278,47 @@
     footEl.innerHTML = '<a class="link" href="./" style="color:#a5a5a5">去打卡页</a>';
   }
 
-  async function saveDay(){
-    var btn = document.getElementById('saveDay');
+  async function addTo(catId){
+    var amtEl = document.getElementById('amt');
     var msg = document.getElementById('msg');
-    var rec = { d: TODAY }, allZero = true;
-    CATS.forEach(function(c){
-      var v = parseFloat(document.getElementById('f_' + c.id).value);
-      rec[c.id] = (isNaN(v) || v < 0) ? 0 : Math.round(v*100)/100;
-      if(rec[c.id] > 0) allZero = false;
-    });
-    btn.disabled = true;
+    var v = parseFloat(amtEl.value);
+    if(!v || v <= 0 || v > 100000){ msg.textContent = '先在上面输个金额，比如 15.5'; return; }
+    v = Math.round(v*100)/100;
+
+    var btns = formEl.querySelectorAll('.cat');
+    btns.forEach(function(b){ b.disabled = true; });
     try{
       var cur = await readAll();
       var days = cur.days.slice();
       var i = days.findIndex(function(x){ return x.d === TODAY; });
-      if(allZero){ if(i > -1) days.splice(i, 1); }
-      else if(i > -1) days[i] = rec; else days.push(rec);
+      var day = i > -1 ? days[i] : { d: TODAY, food:0, move:0, daily:0, other:0 };
+      day[catId] = Math.round(((Number(day[catId]) || 0) + v) * 100) / 100;
+      if(i > -1) days[i] = day; else days.push(day);
       await writeAll(days, cur.sha);
       render(days);
       var m2 = document.getElementById('msg');
-      if(m2) m2.textContent = allZero ? '今天清空了' : '记上了';
-      if(m2) m2.className = 'msg ok';
+      if(m2){
+        m2.className = 'msg ok';
+        m2.textContent = CATNAME[catId] + ' +' + money(v) + '，今天这一类共 ' + money(day[catId]) + ' 元';
+      }
+      var a2 = document.getElementById('amt');
+      if(a2) a2.focus();
     }catch(e){
-      btn.disabled = false;
-      msg.textContent = e.message + '，再试一次';
+      btns.forEach(function(b){ b.disabled = false; });
+      msg.textContent = e.message + '，再点一次试试';
+    }
+  }
+
+  async function clearToday(){
+    try{
+      var cur = await readAll();
+      var days = cur.days.filter(function(d){ return d.d !== TODAY; });
+      await writeAll(days, cur.sha);
+      render(days);
+      var m = document.getElementById('msg');
+      if(m){ m.className = 'msg ok'; m.textContent = '今天清空了'; }
+    }catch(e){
+      footEl.innerHTML = '<span class="err">清不掉：' + e.message + '</span>';
     }
   }
 
@@ -326,7 +356,9 @@
       refresh();
       return;
     }
-    if(e.target.id === 'saveDay'){ saveDay(); return; }
+    var cat = e.target.closest('button[data-add]');
+    if(cat){ addTo(cat.dataset.add); return; }
+    if(e.target.id === 'clearDay'){ clearToday(); return; }
     if(e.target.id === 'export'){
       try{
         var cur = await readAll();
