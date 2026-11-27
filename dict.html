@@ -101,10 +101,11 @@
   function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   async function loadWords(){
-    // 词库用 raw 直取纯 JSON（contents 接口返回的是带 base64 的元数据）
-    var r = await fetch(RAW + 'words.json?t=' + Date.now(), { cache:'no-store' });
+    // raw.githubusercontent.com 在国内不通，走 api.github.com 再解 base64
+    var r = await fetch(BASE + 'words.json?t=' + Date.now(), { headers: H(), cache:'no-store' });
     if(!r.ok) throw new Error('词库没加载上（' + r.status + '）');
-    var data = await r.json();
+    var j = await r.json();
+    var data = JSON.parse(b64dec(j.content));
     if(!Array.isArray(data)) throw new Error('词库格式不对');
     return data;
   }
